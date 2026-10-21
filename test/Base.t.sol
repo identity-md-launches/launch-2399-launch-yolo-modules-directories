@@ -40,6 +40,7 @@ import {MockIntake} from "./mocks/MockIntake.sol";
 import {MockPriceOracle} from "./mocks/MockPriceOracle.sol";
 import {MockSwapAdapter} from "./mocks/MockSwapAdapter.sol";
 import {MockDelegateRegistry} from "./mocks/MockDelegateRegistry.sol";
+import {BaseVaultDeployer} from "./mocks/BaseVaultDeployer.sol";
 
 /// @dev The vault has no public attestation fallback. Declared here only to show that its selector is
 ///      unknown: the vault answers it with UnknownFunction.
@@ -128,15 +129,20 @@ abstract contract Base is Test {
         delegates = new MockDelegateRegistry();
         attester = vm.addr(attesterKey);
 
-        registry = new ParamsRegistry(
-            multisig,
-            address(intake),
-            address(oracle),
-            address(adapter),
-            address(nft),
-            address(delegates),
-            treasury,
-            attester
+        registry = ParamsRegistry(
+            deployCode(
+                "src/ParamsRegistry.sol:ParamsRegistry",
+                abi.encode(
+                    multisig,
+                    address(intake),
+                    address(oracle),
+                    address(adapter),
+                    address(nft),
+                    address(delegates),
+                    treasury,
+                    attester
+                )
+            )
         );
         _deployVault();
 
@@ -177,40 +183,40 @@ abstract contract Base is Test {
         actors.push(treasury);
     }
 
-    /// @dev The launch order: stateless helpers, the two desks, the vault last (it wires the desks; all of this
-    ///      must happen in one transaction, as in the launch: setUp is one).
+    /// @dev Load bytecode instead of embedding the full core in every inherited test. The desks and vault
+    ///      deploy in one helper call, preserving their transient-storage handshake on Forge 1.8.
     function _deployVault() internal {
-        TextRules text = new TextRules();
+        TextRules text = TextRules(deployCode("src/helpers/TextRules.sol:TextRules"));
         address r = address(registry);
-        hub = new YoloLockHub(address(yolo));
-        burner = new BuybackBurner(address(yolo), address(imd), address(usdc), address(oracle), buybackWallet);
-        caseDesk = new CaseDesk(
-            r, address(imd), address(usdc), address(text), address(new SwarmQuestionBuilder()), address(yolo), address(hub)
+        hub = YoloLockHub(deployCode("src/YoloLockHub.sol:YoloLockHub", abi.encode(address(yolo))));
+        burner = BuybackBurner(
+            payable(deployCode(
+                    "src/BuybackBurner.sol:BuybackBurner",
+                    abi.encode(address(yolo), address(imd), address(usdc), address(oracle), buybackWallet)
+                ))
         );
-        votePower = new VotePower(address(nft), address(delegates));
-        disputeDesk = new DisputeDesk(
-            r, address(imd), address(usdc), address(text), address(votePower), address(yolo), address(hub)
+        address question = deployCode("src/helpers/SwarmQuestion.sol:SwarmQuestionBuilder");
+        votePower = VotePower(deployCode("src/VotePower.sol:VotePower", abi.encode(address(nft), address(delegates))));
+        address checker = deployCode("src/helpers/AttestationChecker.sol:AttestationChecker", abi.encode(r));
+        bytes memory caseCode = abi.encodePacked(
+            vm.getCode("src/desks/CaseDesk.sol:CaseDesk"),
+            abi.encode(r, address(imd), address(usdc), address(text), question, address(yolo), address(hub))
         );
-        vault = ITaskVault(
-            address(
-                new TaskVault(
-                    r,
-                    address(imd),
-                    address(usdc),
-                    address(yolo),
-                    address(new AttestationChecker(r)),
-                    address(text),
-                    address(caseDesk),
-                    address(disputeDesk),
-                    address(burner)
-                )
-            )
+        bytes memory disputeCode = abi.encodePacked(
+            vm.getCode("src/desks/DisputeDesk.sol:DisputeDesk"),
+            abi.encode(r, address(imd), address(usdc), address(text), address(votePower), address(yolo), address(hub))
         );
-        sweetener = new YoloSweetener(address(vault));
+        address[7] memory cfg = [r, address(imd), address(usdc), address(yolo), checker, address(text), address(burner)];
+        (address cd, address dd, address v) =
+            new BaseVaultDeployer().deploy(caseCode, disputeCode, vm.getCode("src/TaskVault.sol:TaskVault"), cfg);
+        caseDesk = CaseDesk(cd);
+        disputeDesk = DisputeDesk(dd);
+        vault = ITaskVault(v);
+        sweetener = YoloSweetener(deployCode("src/YoloSweetener.sol:YoloSweetener", abi.encode(address(vault))));
         vm.prank(multisig); // the registry owner binds the add-on once
         vault.bindSweetener(address(sweetener));
-        catalog = new TrophyCatalog(multisig);
-        trophy = new DareTrophy(address(vault), address(catalog));
+        catalog = TrophyCatalog(deployCode("src/TrophyCatalog.sol:TrophyCatalog", abi.encode(multisig)));
+        trophy = DareTrophy(deployCode("src/DareTrophy.sol:DareTrophy", abi.encode(address(vault), address(catalog))));
     }
 
     function defaultParams() internal view returns (Params memory p) {

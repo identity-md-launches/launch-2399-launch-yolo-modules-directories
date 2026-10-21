@@ -81,6 +81,7 @@ contract YoloSweetener {
         if (vault_ == address(0)) revert ZeroAddress();
         ISweetenedVault v = ISweetenedVault(vault_);
         vault = v;
+        if (vault_.code.length == 0) return; // IMD's empty-chain floor: nothing to read
         registry = ParamsRegistry(v.registry());
         yolo = v.yolo();
     }

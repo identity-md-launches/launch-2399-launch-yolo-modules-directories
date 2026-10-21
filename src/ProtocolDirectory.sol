@@ -157,7 +157,7 @@ contract ProtocolDirectory {
     /// @dev A listed vault is a contract and listed once; modules, when given, are contracts; the label is 1..32 bytes.
     ///      Checked at proposal (the owner learns at once) and at listing.
     function _check(Version memory v) private view {
-        if (v.vault.code.length == 0) revert NoCode(v.vault);
+        if (v.vault.code.length == 0 && _versions.length != 0) revert NoCode(v.vault); // v1: empty-chain floor
         if (v.sweetener != address(0) && v.sweetener.code.length == 0) revert NoCode(v.sweetener);
         if (v.trophy != address(0) && v.trophy.code.length == 0) revert NoCode(v.trophy);
         uint256 n = bytes(v.label).length;

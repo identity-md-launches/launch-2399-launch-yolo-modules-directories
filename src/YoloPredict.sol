@@ -125,8 +125,9 @@ contract YoloPredict {
         if (minPosition_ == 0) revert ZeroAmount();
         IPredictVault v = IPredictVault(vault_);
         vault = v;
-        yolo = v.yolo();
         minPosition = minPosition_;
+        if (vault_.code.length == 0) return; // IMD's empty-chain floor: nothing to read
+        yolo = v.yolo();
     }
 
     /// @notice Predict, with `amount` $YOLO, that `taskId` will be done (`willDo`) or not by its deadline. Anyone

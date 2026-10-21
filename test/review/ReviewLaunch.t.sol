@@ -104,7 +104,7 @@ contract ReviewLaunchStatic is Test {
     uint256 constant DOC_MARGIN_HUB = 21_357; // YoloLockHub (a lock with checkpoints and epochs), launch 2
     uint256 constant DOC_MARGIN_SWEETENER = 17_828;
     uint256 constant DOC_MARGIN_TROPHY = 12_799;
-    uint256 constant DOC_MARGIN_DIRECTORY = 20_030;
+    uint256 constant DOC_MARGIN_DIRECTORY = 20_014;
     uint256 constant DOC_MARGIN_HIDDENLIST = 20_787;
     uint256 constant DOC_MARGIN_CATALOG = 20_348;
     uint256 constant DOC_MARGIN_PREDICT = 18_191;

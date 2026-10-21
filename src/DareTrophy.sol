@@ -88,6 +88,7 @@ contract DareTrophy is ERC721 {
         catalog = ITrophyCatalog(catalog_);
         ITrophyVault v = ITrophyVault(vault_);
         vault = v;
+        if (vault_.code.length == 0) return; // IMD's empty-chain floor: nothing to read
         caseDesk = ITrophyDesk(v.caseDesk());
         textRules = v.textRules();
         yolo = v.yolo();

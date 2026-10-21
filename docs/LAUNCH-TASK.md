@@ -59,7 +59,7 @@ launches of the platform (0.3–1.5%).
 The swarm's changes will hit the 24,576-byte per-contract limit (EIP-170) before the gas cap: by gas, launch 2 could
 take ~8.8 KB more new code (216 gas per byte, `ReviewLaunch.test_F2_marginalGasPerRuntimeByte`). Size headroom (`ReviewLaunch.test_L1_perContractCodeMargin_matchesDoc`):
 **DisputeDesk 3,087 bytes**, TaskVault 3,975, CaseDesk 4,512, YoloLockHub 21,357; YoloSweetener 17,828, DareTrophy
-12,799, ProtocolDirectory 20,030, HiddenList 20,787, YoloPredict 18,191, TrophyCatalog 20,348; the support contracts from 11,024
+12,799, ProtocolDirectory 20,014, HiddenList 20,787, YoloPredict 18,191, TrophyCatalog 20,348; the support contracts from 11,024
 (ParamsRegistry) up. A swarm change of more than 3.1 KB in DisputeDesk breaks launch 2 on size. Launch 1 has eight of
 the eight contracts the factory allows; launch 2 has four, launch 3 six. Launch 0 has six of eight, all under 4 KB
 (NftGate 1,916, vestings 1,888 to 1,936, YoloSplitter 2,113); YoloToken is 4,015.
@@ -178,9 +178,9 @@ ProtocolDirectory lists the versions of the core: a new version is a new vault w
 
 HiddenList is the site's hide list: standalone, not read by and not reading any other contract, so it cannot hold, freeze or redirect any task, bond or reward. Key (vault, kind, id), kind 1 a task, 2 a proof. setState(items, state) is the project wallet's only action: instant, batch, sets VISIBLE, HIDDEN or KEPT and closes any open vote round. Any identity.md NFT holder (or delegate.xyz v2 delegate) may vote an item hidden with vote(vault, kind, id, hide, tokenIds): the first hide vote on a VISIBLE item opens a 24-hour round; it passes at 10 or more hide NFTs, more hide than keep NFTs and 3 or more distinct hide owners, read through status(...); a round that reached the hide quorum and drew a keep vote, or one the wallet overruled back to VISIBLE, may be retried 7 days after it ended, any other failed round at once; KEPT blocks rounds. The wallet's state holds until a new round passes. No payable or receive, calls no token.
 
-No $YOLO module nor HiddenList has an owner, an admin, a pause or an upgrade path beyond what is written above; the directory has only the wallet's timelocked list, the catalog only its designs. Constructors make no external call except view calls to the vault of launch #<CORE_LAUNCH_NUMBER>. After the launch, TaskVault.bindSweetener is called once, by the ParamsRegistry owner.
+No $YOLO module nor HiddenList has an owner, an admin, a pause or an upgrade path beyond what is written above; the directory has only the wallet's timelocked list, the catalog only its designs. Constructors make no external call except view calls to the vault of launch #<CORE_LAUNCH_NUMBER>. No code at the vault address at deployment (IMD's empty-chain floor) skips those reads: the three $YOLO modules keep zero registry, token and desk addresses and take no bonus, mint or position for good, and the directory lists that vault as version 1 without its code check (later versions keep it). After the launch, TaskVault.bindSweetener is called once, by the ParamsRegistry owner.
 
-The tests must keep passing: forge test (<TEST_COUNT>), and forge test with FORK_URL set to a mainnet archive RPC, which runs this launch through the live ProjectFactory against the 16,777,216 gas cap (under 9.3M).
+The tests must keep passing: forge test (<TEST_COUNT>), and forge test with FORK_URL set to a mainnet archive RPC, which runs this launch through the live ProjectFactory against the 16,777,216 gas cap (under 9.4M).
 
 Audit it as it arrived. Adapt only what the launch rules or a reproduced audit finding require, and record each change in ADAPTATION.md. Do not change the fees, the bonus and market splits, the price of a trophy, the catalog's owner, the burns, the recipients, the directory's timelock or owner, the hide list's quorum, cooldown or vote window, or the constructor arguments, and do not add an owner, a pause, an upgrade path, minting or a fee, unless a reproduced finding requires it; record it in ADAPTATION.md.
 Known limitations listed in docs are accepted rules, not findings; do not change them.

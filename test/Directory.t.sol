@@ -49,8 +49,8 @@ contract DirectoryTest is Base {
     function test_ConstructorChecks() public {
         vm.expectRevert(ProtocolDirectory.NotSafe.selector);
         new ProtocolDirectory(address(0), address(vault), address(0), address(0), 0);
-        vm.expectRevert(abi.encodeWithSelector(ProtocolDirectory.NoCode.selector, alice));
-        new ProtocolDirectory(safe, alice, address(0), address(0), 0);
+        // version 1 without code at the vault (IMD's empty-chain floor) is listed; later versions are checked
+        assertEq(new ProtocolDirectory(safe, alice, address(0), address(0), 0).version(1).vault, alice);
         vm.expectRevert(abi.encodeWithSelector(ProtocolDirectory.NoCode.selector, bob));
         new ProtocolDirectory(safe, address(vault), bob, address(0), 0);
         // a version without modules is fine

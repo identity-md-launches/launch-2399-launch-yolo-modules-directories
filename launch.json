@@ -1,0 +1,50 @@
+{
+  "kind": "evm_contracts",
+  "contracts": [
+    {
+      "contract": "YoloSweetener",
+      "constructorArgs": [
+        "0x88c3B0B64e6869C424DAF25ad8eD635180832493"
+      ]
+    },
+    {
+      "contract": "TrophyCatalog",
+      "constructorArgs": [
+        "$owner"
+      ]
+    },
+    {
+      "contract": "DareTrophy",
+      "constructorArgs": [
+        "0x88c3B0B64e6869C424DAF25ad8eD635180832493",
+        "$contract:TrophyCatalog"
+      ]
+    },
+    {
+      "contract": "ProtocolDirectory",
+      "constructorArgs": [
+        "$owner",
+        "0x88c3B0B64e6869C424DAF25ad8eD635180832493",
+        "$contract:YoloSweetener",
+        "$contract:DareTrophy",
+        "26241860"
+      ]
+    },
+    {
+      "contract": "HiddenList",
+      "constructorArgs": [
+        "$owner",
+        "0x0000ec93127baa929e58e97dd0095a2bfb38ec1d",
+        "0x00000000000000447e69651d841bd8d104bed493"
+      ]
+    },
+    {
+      "contract": "YoloPredict",
+      "constructorArgs": [
+        "0x88c3B0B64e6869C424DAF25ad8eD635180832493",
+        "1000000000000000000"
+      ]
+    }
+  ],
+  "notes": "Fourth moneycanbuy.fun launch on Ethereum mainnet: the six application contracts in LaunchPlan.extras order. $owner resolves to the project wallet 0x3c587Eff6c96eAcF7E3dcC2CFf6416161386E48C. YoloSweetener, DareTrophy and YoloPredict use the TaskVault of launch #2380 at 0x88c3B0B64e6869C424DAF25ad8eD635180832493 and its dependencies; DareTrophy also uses this TrophyCatalog. TrophyCatalog has two-step ownership and controls designs for new trophies; minted design IDs remain fixed. ProtocolDirectory starts at current version 1, label v1, from block 26241860, with this vault, sweetener and trophy; its fixed project wallet proposes changes subject to a 48-hour delay. HiddenList is standalone, with the fixed project wallet, identity.md NFT and delegate.xyz v2 registry specified above. YoloPredict's minimum position is 1 YOLO (1000000000000000000 units). If the vault has no code at construction, the three YOLO modules retain zero vault-derived dependency addresses and remain inert; the directory still lists version 1. After deployment, the ParamsRegistry owner separately calls TaskVault.bindSweetener once with the deployed YoloSweetener address before bonuses can be deposited. This manifest contains no initialization calls, token deployment, pool or ETH funding."
+}

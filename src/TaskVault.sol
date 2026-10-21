@@ -543,8 +543,8 @@ contract TaskVault {
     }
 
     /// @notice Books `amount` of `currency` from `from` for a bond's "rew" or "add" part: ETH from msg.value, IMD or
-    ///         any other token by plain transferFrom. No swap, no oracle.
-    // slither-disable-next-line arbitrary-send-erc20
+    ///         any other token by plain transferFrom (`_pull`, the same pull `createTask` and `topUp` use). No swap,
+    ///         no oracle.
     function collectBondPart(address from, uint256 msgValue, address currency, uint256 amount)
         external
         onlyDesk
@@ -560,8 +560,7 @@ contract TaskVault {
             ImdPay memory noSwap;
             return _collectImd(from, msgValue, amount, address(0), noSwap);
         }
-        IERC20(currency).safeTransferFrom(from, address(this), amount);
-        liabilities[currency] += amount;
+        _pull(from, currency, amount);
         return 0;
     }
 
@@ -702,10 +701,17 @@ contract TaskVault {
             return amount;
         }
         if (currency == address(imd)) return _collectImd(from, msgValue, amount, adapter, payIn);
-        // USDC or $YOLO, paid directly (neither charges a transfer fee)
+        _pull(from, currency, amount);
+        return 0;
+    }
+
+    /// @dev Books `amount` of `currency` (USDC or $YOLO, paid directly: neither charges a transfer fee) pulled from
+    ///      `from` by plain transferFrom. `from` is the vault's own caller (`createTask`, `topUp`) or the payer a
+    ///      desk names in `collectBondPart`: a desk only ever names the sender the vault's fallback appended to the
+    ///      routed call (Desk._sender), never a third party.
+    function _pull(address from, address currency, uint256 amount) private {
         IERC20(currency).safeTransferFrom(from, address(this), amount);
         liabilities[currency] += amount;
-        return 0;
     }
 
     function _settleValue(address payer, uint256 msgValue, uint256 ethNeeded) private {

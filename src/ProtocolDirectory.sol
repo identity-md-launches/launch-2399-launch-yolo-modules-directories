@@ -78,20 +78,26 @@ contract ProtocolDirectory {
         emit VersionProposed(v.vault, v.label, pendingVersionEta);
     }
 
+    /// @notice Drops the pending proposal: `pendingVersion()` is empty again, not a stale copy of it.
     function cancelVersion() external onlySafe {
         if (pendingVersionEta == 0) revert NothingPending();
         pendingVersionEta = 0;
-        emit VersionCancelled(_pendingVersion.vault);
+        address vault = _pendingVersion.vault;
+        delete _pendingVersion;
+        emit VersionCancelled(vault);
     }
 
-    /// @notice Anyone lists the proposed version after the timelock. It does not become current by itself.
+    /// @notice Anyone lists the proposed version after the timelock. It does not become current by itself. The
+    ///         proposal is consumed: `pendingVersion()` is empty afterwards.
     // slither-disable-next-line incorrect-equality
     function addVersion() external returns (uint256 n) {
         uint64 eta = pendingVersionEta;
         if (eta == 0) revert NothingPending();
         if (block.timestamp < eta) revert TimelockNotPassed();
         pendingVersionEta = 0;
-        return _add(_pendingVersion);
+        Version memory v = _pendingVersion;
+        delete _pendingVersion;
+        return _add(v);
     }
 
     // ------------------------------------------------------------------ current version
@@ -140,6 +146,8 @@ contract ProtocolDirectory {
         return _versions;
     }
 
+    /// @notice The proposal waiting for `addVersion` (empty, vault = address(0), when `pendingVersionEta` is 0:
+    ///         nothing proposed, cancelled, or already listed).
     function pendingVersion() external view returns (Version memory) {
         return _pendingVersion;
     }

@@ -141,14 +141,15 @@ contract YoloLockHub {
         if (h.length != 0) p = h[h.length - 1];
     }
 
+    /// @dev Writes `_history[who]` by name (not only through a storage pointer): the same storage, and static
+    ///      analysis sees the array initialised where it is.
     // slither-disable-next-line incorrect-equality
     function _checkpoint(address who, uint96 pw, uint64 end, uint32 epoch) private {
-        Point[] storage h = _history[who];
-        uint256 n = h.length;
-        if (n != 0 && h[n - 1].at == block.timestamp) {
-            h[n - 1] = Point(uint64(block.timestamp), end, pw, epoch);
+        uint256 n = _history[who].length;
+        if (n != 0 && _history[who][n - 1].at == block.timestamp) {
+            _history[who][n - 1] = Point(uint64(block.timestamp), end, pw, epoch);
         } else {
-            h.push(Point(uint64(block.timestamp), end, pw, epoch));
+            _history[who].push(Point(uint64(block.timestamp), end, pw, epoch));
         }
     }
 }

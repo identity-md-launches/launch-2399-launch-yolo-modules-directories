@@ -158,7 +158,9 @@ contract HiddenListTest is Test {
 
     function test_EthWithDataReverts() public {
         vm.deal(address(this), 1 ether);
-        (bool ok,) = address(list).call{value: 1 ether}(abi.encodeWithSignature("status(address,uint8,uint256)", VAULT, KIND_TASK, 1));
+        (bool ok,) = address(list).call{value: 1 ether}(
+            abi.encodeWithSignature("status(address,uint8,uint256)", VAULT, KIND_TASK, 1)
+        );
         assertFalse(ok);
     }
 
@@ -465,6 +467,95 @@ contract HiddenListTest is Test {
 
             vm.warp(end + COOLDOWN_ + 1); // the defender is back first, round 2
         }
+    }
+
+    /// @notice Audit finding 7351432d (launch 3): one owner's 10 NFTs reach the NFT count of the quorum but never its
+    ///         owners bar (1 < 3), so that round can never pass; a keep vote from the same actor's second wallet must
+    ///         not turn the failed round into a "real contest" that buys the 7-day cooldown. The honest hide vote
+    ///         the next day opens a fresh round at once (with its event), as the contract's own notice promises.
+    function test_SelfContestAtNftQuorumOneOwnerDoesNotBuyCooldown() public {
+        address whale = address(0xB0B);
+        address whale2 = address(0xB0B2);
+        uint256[] memory ten = new uint256[](10);
+        for (uint256 i; i < 10; ++i) {
+            nft.mint(whale, 1 + i);
+            ten[i] = 1 + i;
+        }
+        nft.mint(whale2, 11);
+
+        vm.prank(whale);
+        list.vote(VAULT, KIND_TASK, 7, true, ten);
+        vm.prank(whale2);
+        list.vote(VAULT, KIND_TASK, 7, false, _ids1(11));
+        (uint8 state, uint32 hideNfts, uint32 keepNfts, uint16 hideWallets, uint64 roundEnd) =
+            list.status(VAULT, KIND_TASK, 7);
+        assertEq(hideNfts, 10);
+        assertEq(keepNfts, 1);
+        assertEq(hideWallets, 1);
+
+        vm.warp(roundEnd + 1 hours);
+        (state,,,,) = list.status(VAULT, KIND_TASK, 7);
+        assertEq(state, VISIBLE_, "1 hide owner < 3: the round failed");
+
+        address honest = address(0xC0FFEE);
+        nft.mint(honest, 100);
+        vm.prank(honest);
+        vm.expectEmit(true, true, true, true, address(list));
+        emit HiddenList.HideVote(VAULT, KIND_TASK, 7, honest, true, 1, uint64(block.timestamp + ROUND_));
+        list.vote(VAULT, KIND_TASK, 7, true, _ids1(100));
+        uint64 roundEnd2;
+        (state, hideNfts, keepNfts, hideWallets, roundEnd2) = list.status(VAULT, KIND_TASK, 7);
+        assertEq(hideNfts, 1, "a fresh round holds the honest vote alone");
+        assertEq(keepNfts, 0);
+        assertEq(hideWallets, 1);
+        assertEq(roundEnd2, block.timestamp + ROUND_, "a new 24h round is running");
+        assertGt(roundEnd2, roundEnd);
+    }
+
+    /// @notice The boundary of the fix: the same 10 hide NFTs from exactly 3 owners (8 + 1 + 1) that a keep side
+    ///         ties is a real contest, so the 7-day cooldown still holds (quorum, cooldown and window unchanged).
+    function test_ContestAtFullQuorumThreeOwnersStillBuysCooldown() public {
+        address w0 = address(0xA1);
+        address w1 = address(0xA2);
+        address w2 = address(0xA3);
+        uint256[] memory eight = new uint256[](8);
+        for (uint256 i; i < 8; ++i) {
+            nft.mint(w0, i + 1);
+            eight[i] = i + 1;
+        }
+        nft.mint(w1, 9);
+        nft.mint(w2, 10);
+        vm.prank(w0);
+        list.vote(VAULT, KIND_TASK, 7, true, eight);
+        vm.prank(w1);
+        list.vote(VAULT, KIND_TASK, 7, true, _ids1(9));
+        vm.prank(w2);
+        list.vote(VAULT, KIND_TASK, 7, true, _ids1(10));
+        for (uint256 i; i < 10; ++i) {
+            address k = address(uint160(uint256(keccak256(abi.encode("keeper-3owners", i)))));
+            nft.mint(k, 900 + i);
+            vm.prank(k);
+            list.vote(VAULT, KIND_TASK, 7, false, _ids1(900 + i)); // tie: contested, the round fails
+        }
+        (,,,, uint64 roundEnd) = list.status(VAULT, KIND_TASK, 7);
+        vm.warp(roundEnd + 1 hours);
+        (uint8 state,,,,) = list.status(VAULT, KIND_TASK, 7);
+        assertEq(state, VISIBLE_);
+
+        address later = address(0xC0FFEE);
+        nft.mint(later, 500);
+        vm.prank(later);
+        list.vote(VAULT, KIND_TASK, 7, true, _ids1(500));
+        (, uint32 hideNfts,,, uint64 roundEnd2) = list.status(VAULT, KIND_TASK, 7);
+        assertEq(roundEnd2, roundEnd, "no new round inside the cooldown");
+        assertEq(hideNfts, 10, "the old tally stands");
+
+        vm.warp(roundEnd + COOLDOWN_);
+        vm.prank(later);
+        list.vote(VAULT, KIND_TASK, 7, true, _ids1(500));
+        (, hideNfts,,, roundEnd2) = list.status(VAULT, KIND_TASK, 7);
+        assertEq(hideNfts, 1, "after 7 days a fresh round opens");
+        assertEq(roundEnd2, block.timestamp + ROUND_);
     }
 
     /// @notice An uncontested round (short of quorum, no keep vote at all, nobody

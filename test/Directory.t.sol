@@ -144,6 +144,43 @@ contract DirectoryTest is Base {
         assertEq(dir.current(), 1);
     }
 
+    /// @dev Audit finding fdba6067 (launch 3): a cancelled proposal must not stay readable through
+    ///      `pendingVersion()`; a listed one is consumed the same way. Proposing again afterwards works as before.
+    function test_CancelVersionClearsPendingVersionView() public {
+        (ITaskVault v2,,) = _deployV2();
+        vm.prank(safe);
+        dir.proposeVersion(_v(address(v2), address(0), address(0), "v2"));
+        assertEq(dir.pendingVersion().vault, address(v2));
+        assertEq(dir.pendingVersion().label, "v2");
+
+        vm.prank(safe);
+        vm.expectEmit(true, false, false, true, address(dir));
+        emit ProtocolDirectory.VersionCancelled(address(v2));
+        dir.cancelVersion();
+        assertEq(dir.pendingVersionEta(), 0);
+        ProtocolDirectory.Version memory p = dir.pendingVersion();
+        assertEq(p.vault, address(0), "cancelled: nothing pending to read");
+        assertEq(p.sweetener, address(0));
+        assertEq(p.trophy, address(0));
+        assertEq(p.fromBlock, 0);
+        assertEq(p.addedAt, 0);
+        assertEq(bytes(p.label).length, 0);
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        vm.expectRevert(ProtocolDirectory.NothingPending.selector);
+        dir.addVersion();
+
+        vm.prank(safe);
+        dir.proposeVersion(_v(address(v2), address(0), address(0), "v2b"));
+        assertEq(dir.pendingVersion().label, "v2b");
+        vm.warp(vm.getBlockTimestamp() + 48 hours);
+        assertEq(dir.addVersion(), 2);
+        assertEq(dir.version(2).vault, address(v2));
+        assertEq(dir.version(2).label, "v2b");
+        assertEq(dir.pendingVersion().vault, address(0), "listed: the proposal is consumed");
+        assertEq(bytes(dir.pendingVersion().label).length, 0);
+        assertEq(dir.versionCount(), 2);
+    }
+
     function test_ProposalChecks() public {
         vm.startPrank(safe);
         vm.expectRevert(abi.encodeWithSelector(ProtocolDirectory.AlreadyListed.selector, address(vault)));

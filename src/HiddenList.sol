@@ -15,10 +15,10 @@ import {IDelegateRegistry} from "./interfaces/IDelegateRegistry.sol";
 ///         hide than keep NFTs, and >= 3 distinct hide *owners* (`ownerOf` at vote time, not the caller, so
 ///         delegating one holder's NFTs to extra hot wallets does not manufacture distinct wallets;
 ///         `status`'s `hideWallets` counts distinct callers, for display). A round that ended
-///         *contested* (it drew at
-///         least one keep vote) may be retried only 7 days after it ended; an uncontested round (nobody defended the
-///         item) may be retried at once, so one NFT cannot keep an item un-hideable by opening a lone round every 8
-///         days. A hide vote inside the round's last hour that would make the round pass
+///         *contested* (it reached that hide quorum, >= 10 NFTs from >= 3 distinct owners, and still drew at
+///         least one keep vote) may be retried only 7 days after it ended; any other failed round (short of the
+///         quorum, or nobody defended the item) may be retried at once, so one owner's NFTs plus a keep vote from a
+///         second wallet cannot keep an item un-hideable by opening a lone round every 8 days. A hide vote inside the round's last hour that would make the round pass
 ///         extends `roundEnd` by one hour, so a late swing cannot close before the keep side can answer.
 ///         `KEPT` blocks rounds entirely. The owner's `setState` always closes whatever round is open and
 ///         clears its tally; restoring `VISIBLE` over a round that had already started also opens the same 7-day
@@ -80,7 +80,13 @@ contract HiddenList {
 
     event StateSet(address indexed vault, uint8 indexed kind, uint256 indexed id, uint8 state);
     event HideVote(
-        address indexed vault, uint8 indexed kind, uint256 indexed id, address voter, bool hide, uint256 counted, uint64 roundEnd
+        address indexed vault,
+        uint8 indexed kind,
+        uint256 indexed id,
+        address voter,
+        bool hide,
+        uint256 counted,
+        uint64 roundEnd
     );
 
     error NotOwner();
@@ -147,14 +153,15 @@ contract HiddenList {
             if (!hide) return; // nothing open to defend
             if (s.roundEnd != 0) {
                 if (_won(s)) return; // a passed round stands until the owner changes it
-                // cooldown only after a round that reached hide quorum and still drew a keep vote (a real contest),
-                // or that the owner just overruled back to VISIBLE; a round below hide quorum is never a real
-                // contest even with a keep vote, so a self-contest (hide + keep from the same actor's own wallets)
-                // cannot buy the cooldown against an honest hide cluster that has not voted yet; an
-                // uncontested round (nobody defended, nobody watching) may be retried at once, so one
+                // cooldown only after a round that reached the hide quorum (QUORUM_NFTS NFTs from MIN_WALLETS
+                // distinct owners, the same bar `_won` checks) and still drew a keep vote (a real contest), or that
+                // the owner just overruled back to VISIBLE; a round below that bar is never a real contest even
+                // with a keep vote, so a self-contest (hide + keep from the same actor's own wallets, however many
+                // NFTs one owner holds) cannot buy the cooldown against an honest hide cluster that has not voted
+                // yet; an uncontested round (nobody defended, nobody watching) may be retried at once, so one
                 // lone NFT cannot keep an item un-hideable by reopening an empty round every 8 days
                 if (
-                    ((s.keepNfts > 0 && s.hideNfts >= QUORUM_NFTS) || s.ownerCooldown)
+                    ((s.keepNfts > 0 && s.hideNfts >= QUORUM_NFTS && s.hideOwners >= MIN_WALLETS) || s.ownerCooldown)
                         && block.timestamp < s.roundEnd + COOLDOWN
                 ) {
                     return;
